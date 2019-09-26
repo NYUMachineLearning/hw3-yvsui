@@ -1,0 +1,440 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Lab Section
+
+In this lab, we will go over regularization, classification and performance metrics. We will be using the caret package in R. https://topepo.github.io/caret/train-models-by-tag.html
+
+# Perfomance Metrics 
+
+## K- fold cross validatation - Resampling method
+
+Randomly split the training data into k folds. If you specify 10 folds, then you split the data into 10 partitions. Train the model on 9 of those partitions, and test your model on the 10th partition. Iterate through until every partition has been held out. 
+
+A smaller k is more biased, but a larger k can be very variable. 
+
+## Bootstrapping - Resampling method
+
+Sample with replacement. Some samples may be represented several times within the boostrap sample, while others may not be represented at all. The samples that are not selected are called out of bag samples. 
+
+Boostrap error rates usually have less uncertainty than k-fold cross validation, but higher bias. 
+
+## Error
+
+Deviation of the observed value to the true value (population mean)
+
+## Residual 
+
+Deviation of the observed value to the estimated value (sample mean)
+$$residual=y_i - \hat{y_i}$$
+where $\hat{y_i}$ is the estimated value
+
+## Mean Squared Error (MSE)
+
+$$MSE=\frac{1}{n}\sum_{i=1}^{n}(y_i - \hat{y_i})^2$$
+
+## Root Mean Squared Error (RMSE)
+Same units as original data.
+
+$$RMSE=\sqrt{MSE}$$
+
+## R^2
+Proportion of information explained by the model. It is a measure of correlation, not accuracy. 
+$$1-RSS/TSS$$ 
+
+## L2 regularization : Ridge regression. Regularize by adding the sum of the coefficients, squared, to the function. 
+
+$$Ridge Regression=\sum_{i=1}^{n}(y_i - w_0 - \sum_{j=1}^{p}w_jx_{ij})^2 + \lambda\sum_{j=1}^p(w_j)^2$$
+
+## L1 regularization : Lasso Regression. Regularize by adding the sum of the absolute value of the coefficients to the model. Coefficient estimates may be pushed to zero -- Lasso can perform variable selection
+
+$$Lasso Regression=\sum_{i=1}^{n}(y_i - w_0 - \sum_{j=1}^{p}w_jx_{ij})^2 + \lambda\sum_{j=1}^p|w_j|$$
+
+## Sensitivity or True Positive Rate
+
+TP = True Positives
+TN = True Negatives
+FP = False Positives - Type I error
+FN =  False Negatives - Type II error
+N = actual negative samples
+P = actual positive samples
+
+$$TPR=TP/(TP + FN)$$
+
+## Specificity or True Negative Rate
+
+$$TNR=TN/(TN + FP)$$
+
+## Receiver Operating Characteristics (ROC)
+
+Plot of True Positive Rate (sensitivity) against False Positive Rate, or plots the True Positive Rate (sensitivity) against specificity. 
+
+Either way, a good ROC curves up through the left corner, and has a large area underneath. 
+
+## Area under ROC curve (AUC)
+
+The area underneath the ROC curve
+
+## Logistic function:
+
+$$P(X)=e^{w_0 + w_1X}/{1+e^{w_0+w_1X}}$$
+
+\newpage
+
+### The broad steps of Machine learning in R. 
+
+1. Split the data into training and test. Set test aside. 
+
+2. Fit a good model to the training data. This includes using bootstapping, cross validation etc. to resample the training data and fit a good model.
+
+3. Visualize if your model learned on the training data by looking at ROC curve and AUC.
+
+4. Test how your model performs on the test data. 
+
+### Broad steps for choosing between models according to Max Kuhn and Kjell Johnson
+
+1. Start with several models that are the least interpretable and the most flexible, like boosted trees and svms. These models are the often the most accurate.
+
+2. Investigate simpler models that are less opaque, like partial least squares, generalized additive models, or naive bayes models.
+
+3. Consider using the simplest model that reasonable approximates the performance of more complex models
+
+\newpage
+
+```{r, include=FALSE}
+library(caret)
+library(ROCR)
+library(pROC)
+library(MASS)
+library(ggplot2)
+library(gridExtra)
+library(dplyr)
+library(ggfortify)
+library(glmnet)
+library(tidyverse)
+```
+
+Split data into training and test set
+```{r}
+train_size <- floor(0.75 * nrow(airquality))
+set.seed(543)
+train_pos <- sample(seq_len(nrow(airquality)), size = train_size)
+train_regression <- airquality[train_pos,-c(1,2)]
+test_regression <- airquality[-train_pos,-c(1,2)]
+
+dim(train_regression)
+dim(test_regression)
+```
+
+## Resampling in R
+```{r}
+?trainControl
+```
+
+## Ridge Regression
+
+$$Ridge Regression=\sum_{i=1}^{n}(y_i - w_0 - \sum_{j=1}^{p}w_jx_{ij})^2 + \lambda\sum_{j=1}^p(w_j)^2$$
+2. Create and train model 
+```{r}
+ctrl =  trainControl(method = "boot", 15)
+
+Ridge_regression <- train(Temp ~ Wind + Month, data = train_regression,
+                          method = 'ridge', trControl= ctrl) 
+```
+
+```{r}
+Ridge_regression 
+```
+
+Examine the residuals 
+```{r}
+ridge_test_pred <- predict(Ridge_regression, newdata = test_regression)
+
+#plot the predicted values vs the observed values
+plot_ridge_test_pred <- data.frame(Temp_test_pred = ridge_test_pred, 
+                                   Observed_Temp = test_regression$Temp)
+ggplot(data = plot_ridge_test_pred) +
+  geom_point(aes(x=Observed_Temp, y = Temp_test_pred)) + 
+  ggtitle("True Temp Value vs Predicted Temp Value Ridge Regression") +
+  theme_bw()
+
+#median residual value should be close to zero
+median(resid(Ridge_regression))
+```
+
+
+# Homework
+
+## Lasso
+
+$$Lasso Regression=\sum_{i=1}^{n}(y_i - w_0 - \sum_{j=1}^{p}w_jx_{ij})^2 + \lambda\sum_{j=1}^p|w_j|$$
+2. Create and train model 
+```{r}
+
+```
+
+```{r}
+```
+
+Examine the residuals 
+```{r}
+
+#plot the predicted values vs the observed values
+
+
+#median residual value should be close to zero
+```
+
+
+# Classification
+
+1. Split into training and test set 
+```{r}
+data(iris)
+
+#split into training and test set 
+train_size <- floor(0.75 * nrow(iris))
+set.seed(543)
+train_pos <- sample(seq_len(nrow(iris)), size = train_size)
+train_classifier <- iris[train_pos,]
+test_classifier <- iris[-train_pos,]
+
+dim(train_classifier)
+dim(test_classifier)
+```
+
+
+## Linear Discriminant analysis
+
+* Good for well separated classes, more stable with small n than logistic regression, and good for more than 2 response classes. 
+* LDA assumes a normal distribution with a class specific mean and common variance. 
+
+Let's see if our data follows the assumptions of LDA. 
+```{r}
+slength <- ggplot(data = iris, aes(x = Sepal.Length, fill = Species)) + 
+  geom_histogram(position="identity", alpha=0.5, bins= 25)  +
+  theme_bw()
+swidth <- ggplot(data = iris, aes(x = Sepal.Width, fill = Species)) + 
+  geom_histogram(position="identity", alpha=0.5, bins= 25) +
+  theme_bw()
+plength <- ggplot(data = iris, aes(x = Petal.Length, fill = Species)) + 
+  geom_histogram(position="identity", alpha=0.5, bins= 25) +
+  theme_bw()
+pwidth <- ggplot(data = iris, aes(x = Petal.Width, fill = Species)) + 
+  geom_histogram(position="identity", alpha=0.5, bins= 25) +
+  theme_bw()
+
+grid.arrange(slength, swidth, plength, pwidth)
+```
+
+```{r}
+LDA <- lda(Species~ Sepal.Length + Sepal.Width + Petal.Length + Petal.Width, 
+           data= train_classifier, cv= T)
+```
+
+```{r}
+LDA
+```
+
+4. Test model on test set 
+```{r}
+#predict the species of the test data
+LDA_predict <- predict(LDA, newdata=test_classifier)
+confusionMatrix(LDA_predict$class, reference = test_classifier$Species)
+```
+
+
+```{r}
+# save the predictions in a new variable
+predictions <- as.data.frame(LDA_predict$posterior) %>% 
+  rownames_to_column("idx")
+
+test_classifier <- test_classifier %>% 
+  rownames_to_column("idx")
+
+predictions_actual <- full_join(predictions,test_classifier, by = "idx" )
+
+# choose the two classes we want to compare, setosa and versicolor
+set_vers_true_labels <- predictions_actual %>% 
+  filter(Species %in% c("setosa", "versicolor")) %>% 
+  mutate(Species = as.character(Species)) 
+  
+#make dataframe of the prediction and the label
+pred_label <- data.frame(prediction = set_vers_true_labels$setosa,
+                         label = set_vers_true_labels$Species)
+
+ggplot(pred_label, aes(x = 1:24, y = prediction, color = label))+
+  geom_point()
+
+pred <- prediction(set_vers_true_labels$setosa, set_vers_true_labels$Species, 
+label.ordering = c("versicolor", "setosa")) 
+
+perf <- performance(pred,"tpr","fpr")
+plot(perf)
+```
+
+
+## Logistic Regression
+
+$logodds_i=B_0 + B_1X_{i1}$
+
+Here, the log odds represents the log odds of $Y_i$ being 0 or 1. 
+
+Where $logodds$ is the dependent variable, and $X_i$ is the independent variable. $B_{number}$ are the parameters to fit. 
+
+Logistic Regression assumes a linear relationship between the $logodds$ and $X$.
+
+To convert from logodds, a not intuitive quantity, to odds, a more intuitive quantity, we use this non-linear equation: 
+
+$odds_i=e^{logodds_{i}}$
+or 
+$odds_i=e^{B_0 + B_1X_{i1}}$
+
+Odds is defined as the probability that the event will occur divided by the probability that the event will not occur.
+
+Now we convert from odds to probability.
+
+The probability that an event will occur is the fraction of times you expect to see that event in many trials. Probabilities always range between 0 and 1.
+
+To convert from odds to a probability, divide the odds by one plus the odds. So to convert odds of 1/9 to a probability, divide 1/9 by 10/9 to obtain the probability of 0.10
+
+$P=odds/(odds+1)$
+
+
+## Logistic Regression implementation
+
+* Y=1 is the probability of the event occuring.
+* Independent variables should not be correlated.
+* Log odds and independent variables should be linearly correlated.
+
+2. Train and fit model 
+```{r}
+data(iris)
+
+#split into training and test set 
+train_size <- floor(0.75 * nrow(iris))
+set.seed(543)
+train_pos <- sample(seq_len(nrow(iris)), size = train_size)
+train_classifier <- iris[train_pos,]
+test_classifier <- iris[-train_pos,]
+
+
+dim(train_classifier)
+dim(test_classifier)
+#only look at two classes 
+train_classifier_log <- train_classifier[c(which(train_classifier$Species == "setosa"),
+                                           which(train_classifier$Species == "versicolor")),]
+test_classifier_log <- test_classifier[c(which(test_classifier$Species == "setosa"), 
+                                         which(test_classifier$Species == "versicolor")),]
+
+train_classifier_log$Species <- factor(train_classifier_log$Species)
+test_classifier_log$Species <- factor(test_classifier_log$Species)
+
+ctrl <- trainControl(method = "repeatedcv", repeats = 15,classProbs = T,
+                     savePredictions = T)
+
+#create model. logistic regression is a bionomial general linear model. 
+#predict species based on sepal length
+logistic_regression <- train(Species~ Sepal.Length, data = train_classifier_log, 
+                             method = "glm", family= "binomial", trControl = ctrl)
+```
+
+
+```{r}
+logistic_regression
+```
+
+
+```{r}
+summary(logistic_regression)
+```
+
+3. Visualize ROC curve 
+```{r}
+plot(x = roc(predictor = logistic_regression$pred$setosa,
+             response = logistic_regression$pred$obs)$specificities, 
+     y = roc(predictor = logistic_regression$pred$setosa, 
+             response = logistic_regression$pred$obs)$sensitivities,
+     col= "blue", xlim = c(1, 0), type ="l", ylab = "Sensitivity",
+     xlab = "Specificity")
+legend("bottomright", legend = paste("setosa v versicolor --", 
+                                     roc(predictor = logistic_regression$pred$setosa,
+                                         response = logistic_regression$pred$obs)$auc
+, sep = ""), col = c("blue"), fill = c("blue"))
+```
+
+4. Test on an independent set
+```{r}
+#predict iris species using Sepal legth
+logistic_regression_predict_class <- predict(logistic_regression, 
+                                             newdata = test_classifier_log)
+
+#confusion matrix
+confusionMatrix(logistic_regression_predict_class, 
+                reference = test_classifier_log$Species)
+```
+
+Check if log odds and independent variables are linearly correlated
+```{r}
+logistic_regression_predict <- predict(logistic_regression, 
+                                       newdata = test_classifier_log, type = "prob")
+
+# To convert from a probability to odds, divide the probability by one minus that probability. So if the probability is 10% or 0.10 , then the odds are 0.1/0.9 or ‘1 to 9’ 
+
+odds_species1 <- logistic_regression_predict[,1] / (1 - logistic_regression_predict[,1])
+log_odds_species1 <- log(odds_species1)
+cor.test(log_odds_species1, test_classifier_log$Sepal.Length)
+plot(log_odds_species1, test_classifier_log$Sepal.Length)
+```
+
+Look deeper at the logistic regression 
+```{r}
+logistic_predict_prob <- predict(logistic_regression,
+                                 newdata = test_classifier_log, type="prob")
+
+logistic_pred_prob_plot <- data.frame(Species_pred = logistic_predict_prob, Sepal.Length  = test_classifier_log$Sepal.Length) 
+
+test_classifier_log$Species <- as.numeric(test_classifier_log$Species) -1
+
+ggplot(data = test_classifier_log) +
+  geom_point(aes(x=Sepal.Length, y = Species)) + 
+  geom_line(data = logistic_pred_prob_plot, aes(x = Sepal.Length, 
+                                                y = Species_pred.setosa, col =  "setosa"))+
+  geom_line(data = logistic_pred_prob_plot, aes(x = Sepal.Length,
+                                                y = Species_pred.versicolor, col = "versicolor"))+
+  ggtitle("Probabilities for classifying species")
+
+```
+
+#Homework:
+
+1. Use the Breast Cancer dataset from the mlbench package, and predict whether the cancer is malignant or benign using one of the algorithms we learned about in class. Give some rationale as to why you chose this algorithm. Plot ROC curves, and confusion matrices. If you are choosing a hyperparameter like K or lambda, explain how and why you chose it. 
+
+```{r}
+#libra
+#train
+#test
+
+##ctrl <- trainControl()
+## <- train(, data = , method = "", trControl = ctrl)
+## predict(, newdata="")
+```
+
+
+References: 
+https://sebastianraschka.com/Articles/2014_python_lda.html
+
+https://towardsdatascience.com/building-a-multiple-linear-regression-model-and-assumptions-of-linear-regression-a-z-9769a6a0de42
+
+http://www.statisticssolutions.com/wp-content/uploads/wp-post-to-pdf-enhanced-cache/1/assumptions-of-logistic-regression.pdf
+
+https://machinelearningmastery.com/linear-discriminant-analysis-for-machine-learning/  , https://sebastianraschka.com/Articles/2014_python_lda.html
+
+
+Other cool sites: 
+https://www.countbayesie.com/blog/2019/6/12/logistic-regression-from-bayes-theorem
+https://colah.github.io/posts/2014-03-NN-Manifolds-Topology/
