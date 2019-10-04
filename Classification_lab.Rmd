@@ -116,6 +116,7 @@ library(dplyr)
 library(ggfortify)
 library(glmnet)
 library(tidyverse)
+library(e1071)
 ```
 
 Split data into training and test set
@@ -132,7 +133,7 @@ dim(test_regression)
 
 ## Resampling in R
 ```{r}
-?trainControl
+#?trainControl
 ```
 
 ## Ridge Regression
@@ -174,19 +175,24 @@ median(resid(Ridge_regression))
 $$Lasso Regression=\sum_{i=1}^{n}(y_i - w_0 - \sum_{j=1}^{p}w_jx_{ij})^2 + \lambda\sum_{j=1}^p|w_j|$$
 2. Create and train model 
 ```{r}
-
-```
-
-```{r}
+lasso_ctrl =  trainControl(method = "boot", 30)
+lasso_regression <- train(Temp ~ Wind + Month, data = train_regression,
+                          method = 'lasso', trControl= lasso_ctrl) 
+lasso_regression 
 ```
 
 Examine the residuals 
 ```{r}
-
-#plot the predicted values vs the observed values
-
+lasso_test_pred <- predict(lasso_regression, newdata = test_regression)
+plot_lasso_test_pred <- data.frame(Temp_test_pred = lasso_test_pred, 
+                                   Observed_Temp = test_regression$Temp)
+ggplot(data = plot_lasso_test_pred) +
+  geom_point(aes(x=Observed_Temp, y = Temp_test_pred)) + 
+  ggtitle("True Temp Value vs Predicted Temp Value using Lasso Regression") +
+  theme_bw()
 
 #median residual value should be close to zero
+median(resid(lasso_regression))
 ```
 
 
@@ -415,14 +421,136 @@ ggplot(data = test_classifier_log) +
 1. Use the Breast Cancer dataset from the mlbench package, and predict whether the cancer is malignant or benign using one of the algorithms we learned about in class. Give some rationale as to why you chose this algorithm. Plot ROC curves, and confusion matrices. If you are choosing a hyperparameter like K or lambda, explain how and why you chose it. 
 
 ```{r}
-#libra
-#train
-#test
+#library
+library(mlbench)
+data(BreastCancer)
 
-##ctrl <- trainControl()
-## <- train(, data = , method = "", trControl = ctrl)
-## predict(, newdata="")
+#A quick look at the variables
+for(ii in 2:10){
+  print(
+    ggplot(BreastCancer,aes(x=BreastCancer[,ii])) + 
+                  geom_bar(aes(fill = BreastCancer$Class,
+                           color = BreastCancer$Class), position = "dodge")
+  )
+}
+#Seeing from the histograms, some of the variables might be more informative when they are dummy coded (all but cl.thickness and bl.cromatin actually).
 ```
+
+```{r}
+#Remove observations with Na and dummy code 
+newdata = BreastCancer
+newdata = na.omit(newdata)
+newdata$Bare.nuclei = factor(newdata$Bare.nuclei,levels = c("1","2","3","4","5","6","7","8","9","10"),order=TRUE)
+newdata$Bl.cromatin = factor(newdata$Bl.cromatin,levels = c("1","2","3","4","5","6","7","8","9","10"),order=TRUE)
+newdata$Normal.nucleoli = factor(newdata$Normal.nucleoli,levels = c("1","2","3","4","5","6","7","8","9","10"),order=TRUE)
+newdata$Mitoses = factor(newdata$Mitoses,levels = c("1","2","3","4","5","6","7","8","9","10"),order=TRUE)
+
+#For cell size, shape, marg.adhesion, epith c size, bare nuclei, and normal nucleoli, code the values as smaller than 4 or larger than 4, since seeing from above histograms the data gather mostly at the two ends.
+for (ii in c(3:7,9)) {
+  tmp1 = which(newdata[,ii] <= 3)
+  tmp2 = which(newdata[,ii] >= 4)
+  newdata[tmp1,ii] = rep(1,length(tmp1))
+  newdata[tmp2,ii] = rep(2,length(tmp2))
+  newdata[,ii] = as.integer(newdata[,ii])-1
+}
+
+#For mitoses, dummy code as whether it equals 1 or not
+tmp1 = which(newdata[,10] == 1)
+tmp2 = which(newdata[,10] != 1)
+newdata[tmp1,10] = rep(1,length(tmp1))
+newdata[tmp2,10] = rep(2,length(tmp2))
+newdata[,10] = as.integer(newdata[,10])-1
+```
+
+```{r}
+#Split into training and testing sets, and factorize outcome variable "Class" 
+tmp = sample(1:683,683,replace=F)
+newdata = newdata[c(tmp),]
+train_data = newdata[1:510,]
+test_data = newdata[511:683,]
+
+train_classes = train_data[c(which(train_data$Class == "benign"),
+                              which(train_data$Class == "malignant")),]
+test_classes = test_data[c(which(test_data$Class == "benign"),
+                              which(test_data$Class == "malignant")),]
+
+train_classes$Class = factor(train_classes$Class)
+test_classes$Class = factor(test_classes$Class)
+```
+
+```{r}
+#Feature selection: run chi-square tests between predictors and classes in training set, and between pairs of predictors with seemingly similar distributions
+tmp = c()
+for (ii in c(2:10)) {
+  chisq_p = chisq.test(table(cbind(train_data[,11],train_data[,ii]))) 
+  tmp[ii-1] = chisq_p$p.value
+}
+tmp
+
+chisq_size_shape = chisq.test(table(cbind(train_data$Cell.size,train_data$Cell.shape)))
+chisq_size_adhe = chisq.test(table(cbind(train_data$Cell.size,train_data$Marg.adhesion)))
+chisq_size_bare = chisq.test(table(cbind(train_data$Cell.size,train_data$Bare.nuclei)))
+chisq_size_norm = chisq.test(table(cbind(train_data$Cell.size,train_data$Normal.nucleoli)))
+chisq_shape_norm = chisq.test(table(cbind(train_data$Cell.shape,train_data$Normal.nucleoli)))
+chisq_epit_mitos = chisq.test(table(cbind(train_data$Epith.c.size,train_data$Mitoses)))
+chisq_cl_bl = chisq.test(table(cbind(train_data$Cl.thickness,train_data$Bl.cromatin)))
+
+chisq_size_shape$p.value
+chisq_size_adhe$p.value
+chisq_size_bare$p.value
+chisq_size_norm$p.value
+chisq_shape_norm$p.value
+chisq_cl_bl$p.value
+#After a whole lot of chi-squre tests, I realized all of the dummy coded variables are highly related, so I chose Cl.thickness to represent variables with more scattered distribution, and bare.nuclei to represent those with datapoints gathered at one or two categories (that is, all dummy coded variables)
+```
+
+```{r}
+#Since the outcome variable has only two levels, I'm using logistic regression
+ctrl = trainControl(method = "repeatedcv", repeats = 15,classProbs = T,
+                     savePredictions = T)
+#train
+logistic_regression = train(Class ~ Cl.thickness+Bare.nuclei,
+                      data = train_classes, 
+                      method = "glm", family= "binomial", trControl = ctrl)
+
+logistic_regression
+
+summary(logistic_regression)
+
+#ROC curve
+plot(x = roc(predictor = logistic_regression$pred$benign,
+             response = logistic_regression$pred$obs)$specificities, 
+     y = roc(predictor = logistic_regression$pred$benign, 
+             response = logistic_regression$pred$obs)$sensitivities,
+     col= "blue", xlim = c(1, 0), type ="l", ylab = "Sensitivity",
+     xlab = "Specificity")
+legend("bottomright", legend = paste("benign v malignant --", 
+                                  roc(predictor = logistic_regression$pred$benign,
+                                  response = logistic_regression$pred$obs)$auc, 
+                                  sep = ""), col = c("blue"), fill = c("blue"))
+#In training data, AUC is quite high
+```
+
+```{r}
+#test
+logistic_regression_predict <- predict(logistic_regression, 
+                                             newdata = test_classes)
+
+#Checking if log odds is correlated with independent variables (I just checked Cl.thickness)
+logistic_regression_predict_prob <- predict(logistic_regression, 
+                                       newdata = test_classes, type = "prob")
+
+odds_classes <- logistic_regression_predict_prob[,1] / (1 - logistic_regression_predict_prob[,1])
+log_odds_class <- log(odds_classes)
+cor.test(log_odds_class, as.numeric(test_classes$Cl.thickness))
+
+#confusion matrix
+confusionMatrix(logistic_regression_predict, 
+                reference = test_classes$Class)
+
+#Seeing from the confusion matrix and the stats, the model is pretty good.
+```
+
 
 
 References: 
